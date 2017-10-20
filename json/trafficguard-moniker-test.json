@@ -1,0 +1,227 @@
+{
+  "appConfig": {},
+  "keepWaitingPipelines": false,
+  "lastModifiedBy": "anonymous",
+  "limitConcurrent": true,
+  "stages": [
+    {
+      "clusters": [
+        {
+          "account": "aws-dev",
+          "application": "nginx",
+          "associatePublicIpAddress": true,
+          "availabilityZones": {
+            "us-west-2": [
+              "us-west-2a",
+              "us-west-2b",
+              "us-west-2c"
+            ]
+          },
+          "capacity": {
+            "desired": 1,
+            "max": 1,
+            "min": 1
+          },
+          "cloudProvider": "aws",
+          "cooldown": 10,
+          "copySourceCustomBlockDeviceMappings": true,
+          "ebsOptimized": false,
+          "enabledMetrics": [],
+          "freeFormDetails": "",
+          "healthCheckGracePeriod": 600,
+          "healthCheckType": "EC2",
+          "iamRole": "BaseIAMProfile",
+          "instanceMonitoring": false,
+          "instanceType": "t2.micro",
+          "keyPair": "armory-spinnaker-dev",
+          "loadBalancers": [
+            "nginx-trafficguards"
+          ],
+          "maxRemainingAsgs": 2,
+          "moniker": {
+            "app": "nginx",
+            "cluster": "nginx-trafficguards",
+            "detail": "",
+            "stack": "trafficguards"
+          },
+          "provider": "aws",
+          "scaleDown": true,
+          "securityGroups": [
+            "sg-518ae82c"
+          ],
+          "spotPrice": "",
+          "stack": "trafficguards",
+          "strategy": "redblack",
+          "subnetType": "external (spinnaker)",
+          "suspendedProcesses": [],
+          "tags": {},
+          "targetGroups": [],
+          "targetHealthyDeployPercentage": 100,
+          "terminationPolicies": [
+            "Default"
+          ],
+          "useAmiBlockDeviceMappings": false
+        }
+      ],
+      "name": "Deploy",
+      "refId": "2",
+      "requisiteStageRefIds": [
+        "3"
+      ],
+      "stageEnabled": {
+        "expression": "false",
+        "type": "expression"
+      },
+      "type": "deploy"
+    },
+    {
+      "cloudProvider": "aws",
+      "cloudProviderType": "aws",
+      "credentials": "aws-dev",
+      "name": "Find Image from Tags",
+      "onlyEnabled": true,
+      "packageName": "nginx",
+      "refId": "3",
+      "regions": [
+        "us-west-2"
+      ],
+      "requisiteStageRefIds": [],
+      "selectionStrategy": "LARGEST",
+      "tags": {},
+      "type": "findImageFromTags"
+    },
+    {
+      "cloudProvider": "aws",
+      "cloudProviderType": "aws",
+      "cluster": "nginx-trafficguards",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "credentials": "aws-dev",
+      "failPipeline": false,
+      "moniker": {
+        "app": "nginx",
+        "cluster": "nginx-trafficguards",
+        "stack": "trafficguards"
+      },
+      "name": "Destroy Server Group",
+      "refId": "4",
+      "regions": [
+        "us-west-2"
+      ],
+      "requisiteStageRefIds": [
+        "2"
+      ],
+      "target": "current_asg_dynamic",
+      "type": "destroyServerGroup"
+    },
+    {
+      "action": "scale_exact",
+      "capacity": {
+        "desired": 0,
+        "max": 0,
+        "min": 0
+      },
+      "cloudProvider": "aws",
+      "cloudProviderType": "aws",
+      "cluster": "nginx-trafficguards",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "credentials": "aws-dev",
+      "failPipeline": false,
+      "moniker": {
+        "app": "nginx",
+        "cluster": "nginx-trafficguards",
+        "stack": "trafficguards"
+      },
+      "name": "Resize Server Group",
+      "refId": "5",
+      "regions": [
+        "us-west-2"
+      ],
+      "requisiteStageRefIds": [
+        "7"
+      ],
+      "resizeType": "exact",
+      "target": "current_asg_dynamic",
+      "targetHealthyDeployPercentage": 100,
+      "type": "resizeServerGroup"
+    },
+    {
+      "cloudProvider": "aws",
+      "cloudProviderType": "aws",
+      "cluster": "nginx-trafficguards",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "credentials": "aws-dev",
+      "failPipeline": false,
+      "moniker": {
+        "app": "nginx",
+        "cluster": "nginx-trafficguards",
+        "stack": "trafficguards"
+      },
+      "name": "Disable Server Group",
+      "refId": "6",
+      "regions": [
+        "us-west-2"
+      ],
+      "requisiteStageRefIds": [
+        "8"
+      ],
+      "target": "current_asg_dynamic",
+      "type": "disableServerGroup"
+    },
+    {
+      "name": "Verify Destroy Server Group Failure",
+      "preconditions": [
+        {
+          "context": {
+            "expression": "${ #stage('Destroy Server Group').context.exception.details.errors[0].toString().contains('has traffic guards enabled') }"
+          },
+          "failPipeline": true,
+          "type": "expression"
+        }
+      ],
+      "refId": "7",
+      "requisiteStageRefIds": [
+        "4"
+      ],
+      "type": "checkPreconditions"
+    },
+    {
+      "name": "Verify Resize Server Group Failure",
+      "preconditions": [
+        {
+          "context": {
+            "expression": "${#stage('Resize Server Group').context.exception.details.errors[0].toString().contains('has traffic guards enabled')}"
+          },
+          "failPipeline": true,
+          "type": "expression"
+        }
+      ],
+      "refId": "8",
+      "requisiteStageRefIds": [
+        "5"
+      ],
+      "type": "checkPreconditions"
+    },
+    {
+      "name": "Verify Disable Server Group Failure",
+      "preconditions": [
+        {
+          "context": {
+            "expression": "${#stage('Disable Server Group').context.exception.details.errors[0].toString().contains('has traffic guards enabled')}"
+          },
+          "failPipeline": true,
+          "type": "expression"
+        }
+      ],
+      "refId": "9",
+      "requisiteStageRefIds": [
+        "6"
+      ],
+      "type": "checkPreconditions"
+    }
+  ],
+  "triggers": [],
+  "updateTs": "1508531501000"
+}
